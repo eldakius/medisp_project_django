@@ -55,49 +55,27 @@ class HistImageModelViewset(viewsets.ModelViewSet):
         url_path="register-images",
     )
     def register_images(self, request):
-        tdata = []
-        labels = []
-        # na allaksw to onoma tis metavlitis
-        benign = os.listdir(
-            os.path.join(settings.BASE_DIR, "medisp_storage/hist_images/train/benign")
-        )
-        for x in benign:
-            img = cv2.imread(
-                os.path.join(
-                    settings.BASE_DIR, "medisp_storage/hist_images/train/benign", x
-                )
-            )
-            if img is not None:
-                img_from_ar = PILImage.fromarray(img, "RGB")
-                resized_image = img_from_ar.resize((50, 50))
-                tdata.append(np.array(resized_image))
-                labels.append(0)
+        server_directory = "medisp_storage/hist_images"
+        label_map = {
+            "malignant": "malignant",
+            "benign": "benign",
+        }
+        registered_data = []
 
-        # Malignant (label 1)
-        malignant = os.listdir(
-            os.path.join(
-                settings.BASE_DIR, "medisp_storage/hist_images/train/malignant"
-            )
-        )
-        for x in malignant:
-            img = cv2.imread(
-                os.path.join(
-                    settings.BASE_DIR, "medisp_storage/hist_images/train/malignant", x
-                )
-            )
-            if img is not None:
-                img_from_ar = PILImage.fromarray(img, "RGB")
-                resized_image = img_from_ar.resize((50, 50))
-                tdata.append(np.array(resized_image))
-                labels.append(1)
+        for label_folder, label_name in label_map.items():
+            label, _ = Label.objects.get_or_create(name=label_name)
+            label_path = os.path.join(server_directory, label_folder)
 
-        tdata_path = os.path.join(settings.BASE_DIR, "tdata.npy")
-        labels_path = os.path.join(settings.BASE_DIR, "labels.npy")
-        np.save(tdata_path, tdata)
-        np.save(labels_path, labels)
+        for filename in os.path.join(server_directory):
+            if filename.endswith(".bmp"):
+                hist_image_path = os.path.join(label_folder, filename)
+                registered_data.append((hist_image_path, label.id))
 
-        # tha kanei mia eggrafi gia kathe eikona me to label tis
-        HistImage()
+                hist_image_dict = {
+                    "hist_image": open(hist_image_path, "rb"),
+                    "label": label.id,
+                }
+                hist_image_serialized = self.get_serializer(data=hist_image_dict)
 
         return Response({"status": "success"}, status=status.HTTP_200_OK)
 
@@ -107,57 +85,63 @@ class HistImageModelViewset(viewsets.ModelViewSet):
         url_path="train-model",
     )
     def train_classification_model(self, request):
-        tdata_path = os.path.join(settings.BASE_DIR, "tdata.npy")
-        labels_path = os.path.join(settings.BASE_DIR, "labels.npy")
-        # diavazei ta hist_image apo to database
-        # pws na ta xwrisei me to filter
-        #
-        tdata = np.load(tdata_path)
-        labels = np.load(labels_path)
+        image_data = []
+        labels = []
 
-        s = np.arange(tdata.shape[0])
-        np.random.shuffle(s)
-        tdata = tdata[s]
-        labels = labels[s]
+        for filename in os.listdir(registered_data):
+            labels = label.id
+            train_image = cv2.imread(hist_image_path)
 
-        data_length = len(tdata)
+            if train_image is not None:
+                train_image = cv2.resize(train_image, (128, 128))
+                image_data.append(train_image)
+            image_data = np.array(image_data)
 
-        (x_train, x_test) = (
-            tdata[(int)(0.1 * data_length) :],
-            tdata[: (int)(0.1 * data_length)],
-        )
-        x_train = x_train.astype("float32") / 255
-        x_test = x_test.astype("float32") / 255
+            s = np.arange(image_data.shape[0])
+            np.random.shuffle(s)
+            tdata = image_data[s]
+            labels = labels[s]
 
-        (y_train, y_test) = (
-            labels[(int)(0.1 * data_length) :],
-            tdata[: (int)(0.1 * data_length)],
-        )
+            data_length = len(image_data)
 
-        model = models.Sequential()
-        model.add(layers.Conv2D(32, (3, 3), activation="relu", input_shape=(50, 50, 3)))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (3, 3), activation="relu"))
-        model.add(layers.MaxPooling2D((2, 2)))
-        model.add(layers.Conv2D(64, (3, 3), activation="relu"))
+            (x_train, x_test) = (
+                image_data[(int)(0.1 * data_length):],
+                image_data[: (int)(0.1 * data_length)],
+            )
+            x_train = x_train.astype("float32") / 255
+            x_test = x_test.astype("float32") / 255
 
-        model.summary()
+            (y_train, y_test) = (
+                labels[(int)(0.1 * data_length):],
+                image_data[: (int)(0.1 * data_length)],
+            )
 
-        model.add(layers.Flatten())
-        model.add(layers.Dense(64, activation="relu"))
-        model.add(layers.Dense(10))
+            model = models.Sequential()
+            model.add(
+                layers.Conv2D(32, (3, 3), activation="relu", input_shape=(50, 50, 3))
+            )
+            model.add(layers.MaxPooling2D((2, 2)))
+            model.add(layers.Conv2D(64, (3, 3), activation="relu"))
+            model.add(layers.MaxPooling2D((2, 2)))
+            model.add(layers.Conv2D(64, (3, 3), activation="relu"))
 
-        model.summary()
+            model.summary()
 
-        model.compile(
-            optimizer="adam",
-            loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
-            metrics=["accuracy"],
-        )
-        history = model.fit(
-            x_train, y_train, epochs=50, validation_data=(x_test, y_test)
-        )
+            model.add(layers.Flatten())
+            model.add(layers.Dense(64, activation="relu"))
+            model.add(layers.Dense(10))
 
-        model.save(os.path.join(settings.BASE_DIR, "model.h5"))
+            model.summary()
 
-        return Response({"status": "success"}, status=status.HTTP_200_OK)
+            model.compile(
+                optimizer="adam",
+                loss=tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True),
+                metrics=["accuracy"],
+            )
+            history = model.fit(
+                x_train, y_train, epochs=50, validation_data=(x_test, y_test)
+            )
+
+            model.save(os.path.join(settings.BASE_DIR, "model.h5"))
+
+            return Response({"status": "success"}, status=status.HTTP_200_OK)

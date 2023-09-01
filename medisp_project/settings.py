@@ -14,7 +14,6 @@ from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-BASE_DIR = Path(__file__).resolve().parent.parent
 STORAGE_FOLDER = "medisp_storage"
 MEDIA_ROOT = os.path.join(BASE_DIR, STORAGE_FOLDER)
 HIST_IMAGES = os.path.join(MEDIA_ROOT, "hist_images")
