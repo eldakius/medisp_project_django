@@ -14,6 +14,9 @@ class Image(models.Model):
     )
     file = models.FileField(upload_to="hist_images", max_length=255)
 
+    class Meta:
+        abstract = True
+
 
 class HistImage(Image):
     MAG40 = 40
@@ -35,7 +38,3 @@ class HistImage(Image):
 
     magnification = models.IntegerField(choices=MAGS, default=UNKNOWN)
     stain = models.CharField(max_length=50, choices=Stain.choices, blank=True)
-
-
-class Meta:
-    abstract = False

@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import include, path
 from rest_framework import routers
 from machine_learning import views
+from machine_learning.views import HistImageModelViewset
 
 # from django.urls import path
 
@@ -31,8 +32,8 @@ urlpatterns = [
 router = routers.DefaultRouter()
 router.register(r"users", views.UserViewSet)
 router.register(r"groups", views.GroupViewSet)
-router.register(r"labels", views.LabelModelViewset)
-router.register(r"histimage", views.HistImageModelViewset)
+router.register(r"labels", views.LabelModelViewset, basename="labelmodelviewset")
+router.register(r"hist-image", views.HistImageModelViewset, basename="histimage")
 
 
 # Wire up our API using automatic URL routing.
@@ -41,4 +42,19 @@ urlpatterns = [
     path("admin/", admin.site.urls),
     path("", include(router.urls)),
     path("api-auth/", include("rest_framework.urls", namespace="rest_framework")),
+    path(
+        "labels/",
+        views.LabelModelViewset.as_view({"post": "create"}),
+        name="labels-list",
+    ),
+    path(
+        "hist-images/register-images/",
+        HistImageModelViewset.as_view({"post": "register_images"}),
+        name="histimagemodelviewset-register-images",
+    ),
+    path(
+        "hist-images/train-model/",
+        HistImageModelViewset.as_view({"post": "train_classification_model"}),
+        name="histimagemodelviewset-train-model",
+    ),
 ]
