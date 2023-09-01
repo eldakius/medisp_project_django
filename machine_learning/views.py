@@ -69,13 +69,17 @@ class HistImageModelViewset(viewsets.ModelViewSet):
         for filename in os.path.join(server_directory):
             if filename.endswith(".bmp"):
                 hist_image_path = os.path.join(label_folder, filename)
-                registered_data.append((hist_image_path, label.id))
+                # registered_data.append((hist_image_path, label.id))
 
                 hist_image_dict = {
                     "hist_image": open(hist_image_path, "rb"),
                     "label": label.id,
                 }
+
                 hist_image_serialized = self.get_serializer(data=hist_image_dict)
+
+                hist_image = HistImage(label=label, file=hist_image_path)
+                hist_image.save()
 
         return Response({"status": "success"}, status=status.HTTP_200_OK)
 
@@ -88,13 +92,16 @@ class HistImageModelViewset(viewsets.ModelViewSet):
         image_data = []
         labels = []
 
-        for filename in os.listdir(registered_data):
-            labels = label.id
-            train_image = cv2.imread(hist_image_path)
+        hist_images = HistImage.objects.all()
+
+        for hist_image in hist_images:
+            labels.append(hist_image.label.id)
+            train_image=cv2.imread(hist_image.file.path)
 
             if train_image is not None:
                 train_image = cv2.resize(train_image, (128, 128))
                 image_data.append(train_image)
+
             image_data = np.array(image_data)
 
             s = np.arange(image_data.shape[0])
